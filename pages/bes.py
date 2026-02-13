@@ -134,8 +134,12 @@ class BesYonetimiPage(QWidget):
         
         # Başlık
         title = QLabel("💰 BES (Bireysel Emeklilik Sistemi) Yönetimi")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         layout.addWidget(title)
+
+        desc = QLabel("BES hesaplarını dönem bazında inceleyin ve personel durumlarını yönetin.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
         
         # Filtre
         filter_layout = QHBoxLayout()
@@ -161,19 +165,21 @@ class BesYonetimiPage(QWidget):
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["Personel", "Çalışılan Gün", "Günlük Tutar", "Aylık BES", "Devam Ediyor", "İşlemler"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { alternate-background-color: #2a2a2a; }")
         layout.addWidget(self.table)
-        hint_lbl = QLabel("Ipuclari: Sutun basligina tikla sirala")
+        hint_lbl = QLabel("İpuçları: Sütun başlığına tıkla sırala")
         hint_lbl.setStyleSheet("color: #888; font-size: 11px;")
         layout.addWidget(hint_lbl)
         
         # Butonlar
         btn_layout = QHBoxLayout()
-        btn_hesapla = QPushButton("🔄 Beş Hesapla")
+        btn_hesapla = QPushButton("🔄 BES Hesapla")
         btn_hesapla.setStyleSheet("background-color: #2196F3; color: white; padding: 8px;")
         btn_hesapla.clicked.connect(self.calculate_bes)
         btn_layout.addWidget(btn_hesapla)
         
-        btn_personel_ekle = QPushButton("👤 Beş Listesine Ekle")
+        btn_personel_ekle = QPushButton("👤 BES Listesine Ekle")
         btn_personel_ekle.setStyleSheet("background-color: #4CAF50; color: white; padding: 8px;")
         btn_personel_ekle.clicked.connect(self.add_personel)
         btn_layout.addWidget(btn_personel_ekle)

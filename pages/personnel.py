@@ -94,6 +94,14 @@ class PersonnelPage(QWidget):
         layout.setSpacing(10)
         layout.setContentsMargins(10, 10, 10, 10)
 
+        title = QLabel("👥 Personel Yönetimi")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
+        layout.addWidget(title)
+
+        desc = QLabel("Personel kartları, ekip atamaları ve ücret bilgilerini yönetin.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
+
         # EKLEME FORMU (Responsive Scroll Area)
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -291,8 +299,9 @@ class PersonnelPage(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(9, QHeaderView.Stretch)
+        self.table.setAlternatingRowColors(True)
         self.table.setStyleSheet("""
-            QTableWidget { background-color: #212121; color: white; gridline-color: #424242; }
+            QTableWidget { background-color: #212121; color: white; gridline-color: #424242; alternate-background-color: #2a2a2a; }
             QHeaderView::section { background-color: #424242; color: white; padding: 5px; font-weight: bold; }
             QLineEdit { background-color: #222; color: white; border: 1px solid #555; }
             QTextEdit { background-color: #222; color: white; border: 1px solid #555; }

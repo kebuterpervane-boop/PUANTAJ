@@ -230,8 +230,12 @@ class RaporlarPage(QWidget):
         
         # Başlık
         title = QLabel("📊 Raporlar ve İstatistikler")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         layout.addWidget(title)
+
+        desc = QLabel("Rapor türüne göre dönemsel analizleri görüntüleyin ve dışa aktarın.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
         
         # Filtre ve Rapor Seçimi
         filter_layout = QHBoxLayout()
@@ -261,8 +265,17 @@ class RaporlarPage(QWidget):
         
         layout.addLayout(filter_layout)
         
+        self.lbl_rapor_desc = QLabel("")
+        self.lbl_rapor_desc.setStyleSheet("color: #999; font-size: 11px; padding: 4px 8px; background-color: #2a2a2a; border-radius: 4px;")
+        self.lbl_rapor_desc.setWordWrap(True)
+        layout.addWidget(self.lbl_rapor_desc)
+        self.combo_rapor.currentTextChanged.connect(self._update_rapor_desc)
+        self._update_rapor_desc()
+        
         # Tablo
         self.table = QTableWidget()
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { alternate-background-color: #2a2a2a; }")
         layout.addWidget(self.table)
         
         # Butonlar
@@ -281,6 +294,17 @@ class RaporlarPage(QWidget):
 
     def load_data(self):
         self._start_load_worker()  # WHY: load report data in background to keep UI responsive.
+
+    def _update_rapor_desc(self):
+        descs = {
+            "Çalışan Saatleri": "Her personelin çalışılan gün, normal saat, mesai saati ve izin günü toplamlarını gösterir.",
+            "Devamsızlık İstatistikleri": "Dönem içindeki izin kayıtlarını ve devamsızlık durumlarını listeler.",
+            "Ekip Bazında Analiz": "Ekiplere göre personel sayısı, toplam ve ortalama çalışma saatlerini karşılaştırır.",
+            "Personel Performansı": "Her personelin çalışma günü, mesai miktarı ve performans puanını gösterir.",
+            "Aylık Özet": "Dönemin genel özeti: gün sayısı, normal, mesai, izin ve avans bilgileri."
+        }
+        rapor = self.combo_rapor.currentText()
+        self.lbl_rapor_desc.setText(descs.get(rapor, ""))
 
     def _start_load_worker(self):
         """Arka planda rapor verisi hazırlar (UI donmasini engeller)."""

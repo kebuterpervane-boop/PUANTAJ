@@ -100,7 +100,8 @@ class AvansPage(QWidget):
         self.table.setHorizontalHeaderLabels(["ID", "Tarih", "Personel", "Tür", "Tutar", "Açıklama"])
         self.table.setColumnHidden(0, True)
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.table.setStyleSheet("QTableWidget { background-color: #2b2b2b; color: white; }")
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { background-color: #2b2b2b; color: white; alternate-background-color: #2a2a2a; }")
         layout.addWidget(self.table)
 
         btn_del = QPushButton("Seçiliyi Sil")

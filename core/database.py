@@ -99,6 +99,7 @@ class Database:
             db_file = str(get_default_db_path())
             relocate_old_db_if_present(Path(db_file))
         self.db_file = str(db_file)
+        self.current_firma_id = 1  # Varsayılan firma ID.
         self._ensure_schema_initialized()
 
     @staticmethod
@@ -712,7 +713,7 @@ class Database:
         try:
             dt = datetime.strptime(tarih, "%Y-%m-%d")
             tarih_key = dt.strftime("%m-%d")
-        except:
+        except Exception:
             tarih_key = tarih
         with self.get_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO resmi_tatiller (tarih, tur, normal_saat, mesai_saat, aciklama) VALUES (?, ?, ?, ?, ?)",
@@ -728,7 +729,7 @@ class Database:
 
     def get_holiday_info(self, tarih):
         try: dt = datetime.strptime(tarih, "%Y-%m-%d"); tarih_key = dt.strftime("%m-%d")
-        except: tarih_key = tarih
+        except Exception: tarih_key = tarih
         with self.get_connection() as conn:
             return conn.execute("SELECT tur, normal_saat, mesai_saat FROM resmi_tatiller WHERE tarih=?", (tarih_key,)).fetchone()
 
@@ -742,7 +743,7 @@ class Database:
                 try:
                     dt = datetime.strptime(tarih, "%Y-%m-%d")
                     delete_key = dt.strftime("%m-%d")
-                except:
+                except Exception:
                     delete_key = tarih
             conn.execute("DELETE FROM resmi_tatiller WHERE tarih=?", (delete_key,))
             conn.commit()
@@ -1367,31 +1368,53 @@ class Database:
         if not raw:
             return ""
 
+        # WHY: collect multi-step repaired variants for mojibake text (latin1/cp125x decoded utf-8).
         candidates = [raw]
-        try:
-            repaired = raw.encode("latin1", errors="ignore").decode("utf-8", errors="ignore").strip()
-            if repaired and repaired != raw:
-                candidates.append(repaired)
-        except Exception:
-            pass
+        seen = {raw}
+        round_inputs = [raw]
+        for _ in range(2):
+            next_round = []
+            for src in round_inputs:
+                for enc in ("latin1", "cp1252", "cp1254"):
+                    try:
+                        repaired = src.encode(enc, errors="ignore").decode("utf-8", errors="ignore").strip()
+                    except Exception:
+                        continue
+                    if repaired and repaired not in seen:
+                        seen.add(repaired)
+                        candidates.append(repaired)
+                        next_round.append(repaired)
+            round_inputs = next_round
+            if not round_inputs:
+                break
 
         aliases = {
             "hasta": "Hasta",
             "raporlu": "Raporlu",
             "rapor izni": "Raporlu",
+            "raporizni": "Raporlu",
             "ozur": "\u00d6z\u00fcr",
+            "ozur izni": "\u00d6z\u00fcr",
+            "ozurizni": "\u00d6z\u00fcr",
             "yillik izin": "Y\u0131ll\u0131k \u0130zin",
+            "yillikizin": "Y\u0131ll\u0131k \u0130zin",
             "dogum izni": "Do\u011fum \u0130zni",
+            "dogumizni": "Do\u011fum \u0130zni",
             "idari izin": "\u0130dari \u0130zin",
+            "idariizni": "\u0130dari \u0130zin",
             "evlilik izni": "Evlilik \u0130zni",
+            "evlilikizni": "Evlilik \u0130zni",
             "cocuk izni": "\u00c7ocuk \u0130zni",
+            "cocukizni": "\u00c7ocuk \u0130zni",
             "is kazasi izni": "\u0130\u015f Kazas\u0131 \u0130zni",
+            "iskazasizni": "\u0130\u015f Kazas\u0131 \u0130zni",
             "diger": "Di\u011fer",
         }
 
         for cand in candidates:
             norm = " ".join(self._normalize_text_for_compare(cand).split())
-            norm_variants = [norm, norm.replace("?", "i"), norm.replace("?", "")]
+            compact = re.sub(r"[^a-z0-9]+", "", norm)
+            norm_variants = [norm, norm.replace("?", "i"), norm.replace("?", ""), compact]
             for nv in norm_variants:
                 mapped = aliases.get(nv)
                 if mapped:
@@ -1399,20 +1422,25 @@ class Database:
 
                 # Heuristic fallback for badly broken strings.
                 tokenized = " ".join(re.sub(r"[^a-z0-9 ]+", " ", nv).split())
-                if ("y" in tokenized and "ll" in tokenized and "zin" in tokenized):
+                compact_tokens = tokenized.replace(" ", "")
+                if ("yillik" in compact_tokens or "yllk" in compact_tokens) and ("izin" in compact_tokens or "izn" in compact_tokens):
                     return "Y\u0131ll\u0131k \u0130zin"
-                if tokenized.startswith("rapor") and "zn" in tokenized:
+                if tokenized.startswith("rapor") and ("zn" in tokenized or "izin" in tokenized):
                     return "Raporlu"
-                if "dogum" in tokenized and "zn" in tokenized:
+                if ("dogum" in compact_tokens or "doum" in compact_tokens) and ("zn" in tokenized or "izin" in tokenized):
                     return "Do\u011fum \u0130zni"
-                if "idari" in tokenized and "zn" in tokenized:
+                if "idari" in compact_tokens and ("zn" in tokenized or "izin" in tokenized):
                     return "\u0130dari \u0130zin"
-                if "evlilik" in tokenized and "zn" in tokenized:
+                if "evlilik" in compact_tokens and ("zn" in tokenized or "izin" in tokenized):
                     return "Evlilik \u0130zni"
-                if ("cocuk" in tokenized or "ocuk" in tokenized) and "zn" in tokenized:
+                if ("cocuk" in compact_tokens or "ocuk" in compact_tokens) and ("zn" in tokenized or "izin" in tokenized):
                     return "\u00c7ocuk \u0130zni"
-                if ("kaza" in tokenized or "kazas" in tokenized) and "zn" in tokenized:
+                if ("kaza" in compact_tokens or "kazas" in compact_tokens) and ("zn" in tokenized or "izin" in tokenized):
                     return "\u0130\u015f Kazas\u0131 \u0130zni"
+                if ("diger" in compact_tokens or compact_tokens in {"dier", "dgr"}):
+                    return "Di\u011fer"
+                if ("ozur" in compact_tokens or compact_tokens.startswith("zr")) and ("zn" in tokenized or "izin" in tokenized or compact_tokens in {"ozur", "zr"}):
+                    return "\u00d6z\u00fcr"
 
         return raw
 
@@ -1464,8 +1492,18 @@ class Database:
 
 
     def set_izin_otomatik_kayit(self, izin_turu, otomatik):
+        canonical = self._canonicalize_izin_turu(izin_turu) or str(izin_turu or "").strip()
+        if not canonical:
+            return
         with self.get_connection() as conn:
-            conn.execute("UPDATE izin_tur_ayarlari SET otomatik_kayit=? WHERE izin_turu=?", (1 if otomatik else 0, izin_turu))
+            conn.execute(
+                "INSERT OR IGNORE INTO izin_tur_ayarlari (izin_turu, otomatik_kayit) VALUES (?, ?)",
+                (canonical, 1 if otomatik else 0),
+            )
+            conn.execute(
+                "UPDATE izin_tur_ayarlari SET otomatik_kayit=? WHERE izin_turu=?",
+                (1 if otomatik else 0, canonical),
+            )
             conn.commit()
 
 
@@ -1486,28 +1524,19 @@ class Database:
     def _normalize_text_for_compare(self, value):
         """Karsilastirma icin metni sade formatta dondurur."""
         txt = str(value or "").strip().lower()
-        # WHY: tolerate Turkish chars and common mojibake variants from legacy data.
         txt = (
-            txt.replace("\u0131", "i")  # ı
-               .replace("\u0130", "i")  # İ
-               .replace("\u015f", "s")  # ş
-               .replace("\u015e", "s")  # Ş
-               .replace("\u00fc", "u")  # ü
-               .replace("\u00f6", "o")  # ö
-               .replace("\u00e7", "c")  # ç
-               .replace("\u011f", "g")  # ğ
-               .replace("Ä±", "i")
-               .replace("Ä°", "i")
-               .replace("ÅŸ", "s")
-               .replace("Å", "s")
-               .replace("Ã¼", "u")
-               .replace("Ã¶", "o")
-               .replace("Ã§", "c")
-               .replace("Ä", "g")
+            txt.replace("\u0131", "i")
+               .replace("\u0130", "i")
+               .replace("\u015f", "s")
+               .replace("\u015e", "s")
+               .replace("\u00fc", "u")
+               .replace("\u00f6", "o")
+               .replace("\u00e7", "c")
+               .replace("\u011f", "g")
         )
         txt = unicodedata.normalize("NFKD", txt)
-        return "".join(ch for ch in txt if not unicodedata.combining(ch))
-
+        txt = "".join(ch for ch in txt if not unicodedata.combining(ch))
+        return " ".join(txt.split())
 
     def _is_yillik_izin_turu(self, izin_turu):
         """Yillik izin turunu toleransli tespit eder."""
@@ -1549,7 +1578,10 @@ class Database:
         return tarihler
 
 
-    def add_izin_with_auto_kayit(self, ad_soyad, izin_tarihi, izin_turu, gun_sayisi=1.0, aciklama=""):
+    def add_izin_with_auto_kayit(self, ad_soyad, izin_tarihi, izin_turu, gun_sayisi=1.0, aciklama="", tersane_id=0):
+        canonical_izin_turu = self._canonicalize_izin_turu(izin_turu) or str(izin_turu or "").strip()
+        if not canonical_izin_turu:
+            canonical_izin_turu = str(izin_turu or "").strip()
         with self.get_connection() as conn:
             c = conn.cursor()
 
@@ -1563,12 +1595,17 @@ class Database:
             yevmiyeci_mi = int(personel_row[1]) if personel_row else 0
             personel_tersane_id = int(personel_row[2]) if personel_row else 0
             personel_firma_id = int(personel_row[3]) if personel_row else 0
+            if personel_tersane_id <= 0:
+                try:
+                    personel_tersane_id = int(tersane_id or 0)  # WHY: fallback to active tersane for legacy/unassigned personnel cards.
+                except Exception:
+                    personel_tersane_id = 0
 
             if personel_firma_id <= 0:
                 firma_row = c.execute("SELECT id FROM firma WHERE ad='GENEL' LIMIT 1").fetchone()
                 personel_firma_id = int(firma_row[0]) if firma_row else 0
 
-            if self._is_yillik_izin_turu(izin_turu) and personel_row:
+            if self._is_yillik_izin_turu(canonical_izin_turu) and personel_row:
                 c.execute(
                     "UPDATE personel SET yillik_izin_hakki=? WHERE TRIM(ad_soyad)=TRIM(?)",
                     ((mevcut_hak or 0) - float(gun_sayisi), ad_soyad)
@@ -1576,11 +1613,16 @@ class Database:
 
             c.execute(
                 "INSERT INTO izin_takip (ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama) VALUES (?, ?, ?, ?, ?)",
-                (ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama)
+                (ad_soyad, izin_tarihi, canonical_izin_turu, gun_sayisi, aciklama)
             )
             izin_id = c.lastrowid
 
-            res = c.execute("SELECT otomatik_kayit FROM izin_tur_ayarlari WHERE izin_turu=?", (izin_turu,)).fetchone()
+            res = c.execute("SELECT otomatik_kayit FROM izin_tur_ayarlari WHERE izin_turu=?", (canonical_izin_turu,)).fetchone()
+            if not res:
+                for tur_row, oto_row in c.execute("SELECT izin_turu, otomatik_kayit FROM izin_tur_ayarlari").fetchall():
+                    if self._canonicalize_izin_turu(tur_row) == canonical_izin_turu:
+                        res = (oto_row,)
+                        break
             if not (res and res[0]):
                 conn.commit()
                 return
@@ -1636,14 +1678,14 @@ class Database:
                             "tersane_id=CASE WHEN COALESCE(tersane_id,0)=0 THEN ? ELSE tersane_id END, "
                             "firma_id=CASE WHEN COALESCE(firma_id,0)=0 THEN ? ELSE firma_id END "
                             "WHERE id=?",
-                            (normal_hak, izin_turu, personel_tersane_id, personel_firma_id, rec_id)
+                            (normal_hak, canonical_izin_turu, personel_tersane_id, personel_firma_id, rec_id)
                         )
                     else:
                         c.execute(
                             "UPDATE gunluk_kayit "
                             "SET giris_saati='', cikis_saati='', kayip_sure_saat='', hesaplanan_normal=?, hesaplanan_mesai=0.0, aciklama=? "
                             "WHERE id=?",
-                            (normal_hak, izin_turu, rec_id)
+                            (normal_hak, canonical_izin_turu, rec_id)
                         )
                 else:
                     if has_extra:
@@ -1651,14 +1693,14 @@ class Database:
                             "INSERT INTO gunluk_kayit "
                             "(tarih, ad_soyad, giris_saati, cikis_saati, kayip_sure_saat, hesaplanan_normal, hesaplanan_mesai, aciklama, tersane_id, firma_id, manuel_kilit) "
                             "VALUES (?, ?, '', '', '', ?, 0.0, ?, ?, ?, 0)",
-                            (kayit_tarihi, ad_soyad, normal_hak, izin_turu, personel_tersane_id, personel_firma_id)
+                            (kayit_tarihi, ad_soyad, normal_hak, canonical_izin_turu, personel_tersane_id, personel_firma_id)
                         )
                     else:
                         c.execute(
                             "INSERT INTO gunluk_kayit "
                             "(tarih, ad_soyad, giris_saati, cikis_saati, kayip_sure_saat, hesaplanan_normal, hesaplanan_mesai, aciklama) "
                             "VALUES (?, ?, '', '', '', ?, 0.0, ?)",
-                            (kayit_tarihi, ad_soyad, normal_hak, izin_turu)
+                            (kayit_tarihi, ad_soyad, normal_hak, canonical_izin_turu)
                         )
 
                     c.execute(
@@ -1672,8 +1714,8 @@ class Database:
             conn.commit()
 
 
-    def add_izin(self, ad_soyad, izin_tarihi, izin_turu, gun_sayisi=1.0, aciklama=""):
-        self.add_izin_with_auto_kayit(ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama)
+    def add_izin(self, ad_soyad, izin_tarihi, izin_turu, gun_sayisi=1.0, aciklama="", tersane_id=0):
+        self.add_izin_with_auto_kayit(ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama, tersane_id=tersane_id)
 
 
     def get_izin_list(self, year, month, tersane_id=None):

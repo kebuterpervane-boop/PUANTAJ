@@ -2,7 +2,7 @@ import os
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                              QLabel, QLineEdit, QFileDialog, QMessageBox, QFrame, QComboBox, QSpinBox,
                              QDialog, QTableWidget, QTableWidgetItem, QHeaderView, QDoubleSpinBox, QScrollArea, QApplication,
-                             QProgressDialog)  # NEW: progress UI for background tasks.
+                             QProgressDialog, QTabWidget)  # NEW: progress UI for background tasks.
 from PySide6.QtGui import QPalette, QColor, QFont
 from PySide6.QtCore import Qt, QThread, Signal, Slot, QObject  # NEW: threading helpers for smooth UI.
 
@@ -117,6 +117,16 @@ class SettingsPage(QWidget):
         # İçerik widget'ı
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
+        tabs = QTabWidget()
+        tabs.setDocumentMode(True)
+        tab_general = QWidget()
+        tab_general_layout = QVBoxLayout(tab_general)
+        tab_management = QWidget()
+        tab_management_layout = QVBoxLayout(tab_management)
+        tab_security = QWidget()
+        tab_security_layout = QVBoxLayout(tab_security)
+        tab_maintenance = QWidget()
+        tab_maintenance_layout = QVBoxLayout(tab_maintenance)
 
         # --- PARAMETRELER ---
         param_frame = QFrame()
@@ -231,7 +241,7 @@ class SettingsPage(QWidget):
         btn_save.clicked.connect(self.save_settings)
         p_layout.addWidget(btn_save)
         
-        content_layout.addWidget(param_frame)
+        tab_general_layout.addWidget(param_frame)
 
         # --- RAPOR AYARLARI: Logo seçimi ---
         logo_frame = QFrame()
@@ -246,7 +256,7 @@ class SettingsPage(QWidget):
         btn_browse_logo.clicked.connect(self.browse_logo)
         l_layout.addWidget(self.input_logo)
         l_layout.addWidget(btn_browse_logo)
-        content_layout.addWidget(logo_frame)
+        tab_general_layout.addWidget(logo_frame)
 
         # --- KULLANICI / SIFRE ---
         cred_frame = QFrame()
@@ -290,7 +300,7 @@ class SettingsPage(QWidget):
         btn_save_cred.clicked.connect(self.save_credentials)
         cred_layout.addWidget(btn_save_cred)
 
-        content_layout.addWidget(cred_frame)
+        tab_security_layout.addWidget(cred_frame)
         self._update_default_pwd_warning()
         
         # --- TERSANE YÖNETİMİ ---
@@ -313,7 +323,7 @@ class SettingsPage(QWidget):
         btn_manage_tersane.clicked.connect(self.open_tersane_yonetimi)
         t_layout.addWidget(btn_manage_tersane)
 
-        content_layout.addWidget(tersane_frame)
+        tab_management_layout.addWidget(tersane_frame)
 
         # --- MESAİ KATSAYILARI ---
         mesai_frame = QFrame()
@@ -334,7 +344,7 @@ class SettingsPage(QWidget):
         btn_manage_yevmiye.clicked.connect(self.open_yevmiye_katsayilari)
         m_layout.addWidget(btn_manage_yevmiye)
         
-        content_layout.addWidget(mesai_frame)
+        tab_management_layout.addWidget(mesai_frame)
         
         # --- YEDEKLEME ---
         backup_frame = QFrame()
@@ -364,10 +374,17 @@ class SettingsPage(QWidget):
         btn_reset = QPushButton("🗑️ TÜM VERİLERİ SİL (SIFIRLA)")
         btn_reset.setStyleSheet("background-color: #b71c1c; color: white; font-weight: bold; padding: 10px; margin-top: 10px;")
         btn_reset.clicked.connect(self.reset_db)
-        b_layout.addWidget(btn_reset)
         
-        content_layout.addWidget(backup_frame)
-        content_layout.addStretch()
+        danger_frame = QFrame()
+        danger_frame.setStyleSheet("border-radius: 8px; padding: 15px; margin-top: 12px; background-color: #2a1f1f; border: 1px solid #b71c1c;")
+        d_layout = QVBoxLayout(danger_frame)
+        lbl_danger = QLabel("Tehlikeli Islemler")
+        lbl_danger.setStyleSheet("color: #ff8a80; font-weight: bold;")
+        d_layout.addWidget(lbl_danger)
+        d_layout.addWidget(btn_reset)
+        
+        tab_maintenance_layout.addWidget(backup_frame)
+        tab_maintenance_layout.addWidget(danger_frame)
 
         # --- AY KİLİDİ ---
         lock_frame = QFrame()
@@ -409,7 +426,16 @@ class SettingsPage(QWidget):
         h_btns.addStretch()
         lock_layout.addLayout(h_btns)
 
-        content_layout.addWidget(lock_frame)
+        tab_security_layout.addWidget(lock_frame)
+        tab_general_layout.addStretch()
+        tab_management_layout.addStretch()
+        tab_security_layout.addStretch()
+        tab_maintenance_layout.addStretch()
+        tabs.addTab(tab_general, "Genel")
+        tabs.addTab(tab_management, "Yönetim")
+        tabs.addTab(tab_security, "Güvenlik")
+        tabs.addTab(tab_maintenance, "Bakım")
+        content_layout.addWidget(tabs)
 
         # Scroll area'yı ayarla
         scroll.setWidget(content_widget)

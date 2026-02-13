@@ -30,7 +30,6 @@ class ExportDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Date range
-        from PySide6.QtWidgets import QDateEdit
         self.date_from = QDateEdit()
         self.date_from.setCalendarPopup(True)
         self.date_to = QDateEdit()
@@ -356,19 +355,7 @@ class RecordsPage(QWidget):
         self.btn_summary_pdf.setEnabled(not locked)
         self.btn_monthly_excel.setEnabled(not locked)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers if locked else QTableWidget.AllEditTriggers)
-        self.table.setContextMenuPolicy(Qt.NoContextMenu if locked else Qt.CustomContextMenu)
-        if locked:
-            QMessageBox.warning(self, "Ay Kilitli", "Bu ay kilitlidir. Değişiklik yapılamaz.")
-        # NOTE: data_updated connection is handled in update_view to avoid duplicates.
-        
-        # Klavye kısayolları
-        self.table.installEventFilter(self)
-        
-        # SAĞ TIK MENÜSÜ
-        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.table.customContextMenuRequested.connect(self.show_context_menu)
-        
-        self.load_data()
+        self.lock_banner.setVisible(locked)
 
     def eventFilter(self, obj, event):
         """Ctrl+C ve Ctrl+V için event filter"""
@@ -407,8 +394,34 @@ class RecordsPage(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
+        title = QLabel("✏️ Günlük Kayıtlar")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
+        layout.addWidget(title)
+
+        desc = QLabel("Günlük giriş/çıkış, normal çalışma ve mesai kayıtlarını görüntüle ve düzenle.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
+
+        self.lock_banner = QFrame()
+        self.lock_banner.setStyleSheet("""
+            QFrame {
+                background-color: #E65100;
+                border-radius: 6px;
+                padding: 8px 16px;
+            }
+        """)
+        self.lock_banner.setVisible(False)
+        banner_layout = QHBoxLayout(self.lock_banner)
+        banner_layout.setContentsMargins(8, 4, 8, 4)
+        self.lbl_lock_msg = QLabel("🔒 Bu ay kilitlidir. Değişiklik yapılamaz.")
+        self.lbl_lock_msg.setStyleSheet("color: white; font-weight: bold; font-size: 12px;")
+        banner_layout.addWidget(self.lbl_lock_msg)
+        banner_layout.addStretch()
+        layout.addWidget(self.lock_banner)
+
         # FİLTRE PANELİ
-        top_bar = QHBoxLayout()
+        period_bar = QHBoxLayout()
+        filter_bar = QHBoxLayout()
         action_bar = QHBoxLayout()
         
         self.combo_year = QComboBox()
@@ -424,18 +437,23 @@ class RecordsPage(QWidget):
         filter_frame = QFrame()
         filter_frame.setStyleSheet("background-color: #2b2b2b; padding: 8px; border-radius: 5px;")
         filter_layout = QHBoxLayout(filter_frame)
+        filter_layout.setSpacing(4)
         
         self.chk_show_empty = QCheckBox("Boş Kayıtları Göster")
         self.chk_show_empty.setChecked(True)
+        self.chk_show_empty.setStyleSheet("font-size: 11px;")
         self.chk_show_empty.stateChanged.connect(self.filter_table)
         
         self.chk_only_empty = QCheckBox("Sadece Boş")
+        self.chk_only_empty.setStyleSheet("font-size: 11px;")
         self.chk_only_empty.stateChanged.connect(self.filter_table)
         
         self.chk_only_weekend = QCheckBox("Sadece Haftasonu")
+        self.chk_only_weekend.setStyleSheet("font-size: 11px;")
         self.chk_only_weekend.stateChanged.connect(self.filter_table)
         
         self.chk_only_special = QCheckBox("Sadece Özel Durum")
+        self.chk_only_special.setStyleSheet("font-size: 11px;")
         self.chk_only_special.stateChanged.connect(self.filter_table)
         
         filter_layout.addWidget(self.chk_show_empty)
@@ -468,29 +486,44 @@ class RecordsPage(QWidget):
         self.search_date.textChanged.connect(self._on_search_changed)
 
         # Günlük sayaçlar
-        self.lbl_daily_count = QLabel("Yevmiye: 0")
+        self.lbl_daily_count = QLabel("📋 Yevmiye: 0")
         self.lbl_daily_count.setStyleSheet("color: #ddd; padding: 4px 8px; background-color: #333; border-radius: 4px;")
-        self.lbl_warn = QLabel("Geç: 0 | Eksik Çıkış: 0")
+        self.lbl_warn = QLabel("⚠️ Geç: 0 | Eksik Çıkış: 0")
         self.lbl_warn.setStyleSheet("color: #ddd; padding: 4px 8px; background-color: #333; border-radius: 4px;")
 
-        top_bar.addWidget(QLabel("Dönem:"))
-        top_bar.addWidget(self.combo_month)
-        top_bar.addWidget(self.combo_year)
+        period_bar.addWidget(QLabel("Dönem:"))
+        period_bar.addWidget(self.combo_month)
+        period_bar.addWidget(self.combo_year)
         self.btn_this_month = QPushButton("Bu Ay")
         self.btn_this_month.setFixedWidth(70)
+        self.btn_this_month.setStyleSheet("""
+            QPushButton {
+                background-color: #333; color: #ccc; border: 1px solid #555;
+                border-radius: 4px; padding: 4px 12px;
+            }
+            QPushButton:hover { background-color: #444; color: white; }
+        """)
         self.btn_this_month.clicked.connect(lambda: self._set_period_relative(0))
-        top_bar.addWidget(self.btn_this_month)
-        self.btn_prev_month = QPushButton("Gecen Ay")
+        period_bar.addWidget(self.btn_this_month)
+        self.btn_prev_month = QPushButton("Geçen Ay")
         self.btn_prev_month.setFixedWidth(80)
+        self.btn_prev_month.setStyleSheet("""
+            QPushButton {
+                background-color: #333; color: #ccc; border: 1px solid #555;
+                border-radius: 4px; padding: 4px 12px;
+            }
+            QPushButton:hover { background-color: #444; color: white; }
+        """)
         self.btn_prev_month.clicked.connect(lambda: self._set_period_relative(-1))
-        top_bar.addWidget(self.btn_prev_month)
-        top_bar.addSpacing(10)
-        top_bar.addWidget(self.combo_team)
-        top_bar.addWidget(self.search_name)
-        top_bar.addWidget(self.search_date)
-        top_bar.addStretch()
-        top_bar.addWidget(self.lbl_daily_count)
-        top_bar.addWidget(self.lbl_warn)
+        period_bar.addWidget(self.btn_prev_month)
+        period_bar.addStretch()
+
+        filter_bar.addWidget(self.combo_team)
+        filter_bar.addWidget(self.search_name)
+        filter_bar.addWidget(self.search_date)
+        filter_bar.addStretch()
+        filter_bar.addWidget(self.lbl_daily_count)
+        filter_bar.addWidget(self.lbl_warn)
 
         # Export button
         self.btn_export = QPushButton("📤 Excel Olarak Dışa Aktar")
@@ -529,7 +562,8 @@ class RecordsPage(QWidget):
         action_bar.addWidget(self.btn_restore)
         action_bar.addStretch()
 
-        layout.addLayout(top_bar)
+        layout.addLayout(period_bar)
+        layout.addLayout(filter_bar)
         layout.addLayout(action_bar)
         layout.addWidget(filter_frame)
 
@@ -548,13 +582,18 @@ class RecordsPage(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.table.setSortingEnabled(True)  # Sütunlara tıklayarak sırala
+        self.table.setAlternatingRowColors(True)
+        self.table.installEventFilter(self)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.show_context_menu)
         
         self.table.setStyleSheet("""
             QTableWidget { 
                 background-color: #212121; 
                 color: white; 
                 gridline-color: #424242; 
-                border: none; 
+                border: none;
+                alternate-background-color: #2a2a2a;
             }
             QHeaderView::section { 
                 background-color: #424242; 
@@ -591,7 +630,7 @@ class RecordsPage(QWidget):
         self.table.selectRow(row)
         id_item = self.table.item(row, 0)
         if not id_item or not id_item.text():
-            QMessageBox.warning(self, "Hata", "Secili satirin ID bilgisi bulunamadi.")
+            QMessageBox.warning(self, "Hata", "Seçili satırın ID bilgisi bulunamadı.")
             return
         rec_id = id_item.text()
         date_item = self.table.item(row, 1)
@@ -1003,10 +1042,10 @@ class RecordsPage(QWidget):
                 self.table.setRowHidden(i, True)
 
         if date_text:
-            self.lbl_daily_count.setText(f"Yevmiye (gün): {yevmiye_count}")
+            self.lbl_daily_count.setText(f"📋 Yevmiye (gün): {yevmiye_count}")
         else:
-            self.lbl_daily_count.setText(f"Yevmiye: {yevmiye_count}")
-        self.lbl_warn.setText(f"Geç: {late_count} | Eksik Çıkış: {missing_exit_count}")
+            self.lbl_daily_count.setText(f"📋 Yevmiye: {yevmiye_count}")
+        self.lbl_warn.setText(f"⚠️ Geç: {late_count} | Eksik Çıkış: {missing_exit_count}")
 
     def open_bulk_edit(self):
         selected_rows = sorted({item.row() for item in self.table.selectedItems()})

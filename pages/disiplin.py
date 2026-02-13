@@ -64,8 +64,12 @@ class DisiplinYonetimiPage(QWidget):
         
         # Başlık
         title = QLabel("⚖️ Disiplin/Ödül Yönetimi")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         layout.addWidget(title)
+
+        desc = QLabel("Disiplin, ödül ve not kayıtlarını personel bazında yönetin.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
         
         # Filtre
         filter_layout = QHBoxLayout()

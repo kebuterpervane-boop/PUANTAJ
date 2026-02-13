@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from core.database import Database
+from core.app_logger import log_error
 
 class HolidaysPage(QWidget):
     def __init__(self, signal_manager):
@@ -22,10 +23,10 @@ class HolidaysPage(QWidget):
 
         # Başlık ve açıklama
         title = QLabel("📅 Resmi Tatil Yönetimi")
-        title.setStyleSheet("font-size: 22px; font-weight: bold; color: #fff;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         layout.addWidget(title)
         desc = QLabel("Yıl boyunca resmi tatilleri ve özel günleri yönetin. Sol listeden seçin, sağda düzenleyin.")
-        desc.setStyleSheet("color: #bbb; font-size: 13px; margin-bottom: 8px;")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
         layout.addWidget(desc)
 
         main = QHBoxLayout()
@@ -36,10 +37,11 @@ class HolidaysPage(QWidget):
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels(["Tarih", "Tür", "Normal", "Mesai", "Açıklama"])
         self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setStyleSheet("""
-            QTableWidget { background-color: #232323; color: #fff; font-size: 13px; }
+            QTableWidget { background-color: #232323; color: #fff; font-size: 13px; alternate-background-color: #2a2a2a; }
             QHeaderView::section { background-color: #424242; color: #fff; font-size: 13px; }
         """)
         main.addWidget(self.table, 2)
@@ -113,8 +115,11 @@ class HolidaysPage(QWidget):
             holidays = self.db.get_all_holidays()
         except Exception as e:
             QMessageBox.critical(self, "Veritabanı Hatası", f"Tatiller yüklenemedi: {e}")
-            print(f"DB error: {e}")
+            log_error(f"Tatil DB hatası: {e}")
             holidays = []
+        if not holidays:
+            self.table.setRowCount(0)
+            return
         self.table.setRowCount(len(holidays))
         for r, (tarih, tur, normal, mesai, aciklama) in enumerate(holidays):
             item_tarih = QTableWidgetItem(tarih)
@@ -139,11 +144,11 @@ class HolidaysPage(QWidget):
         self.input_type.setCurrentText(self.table.item(row, 1).text())
         try:
             self.input_normal.setValue(float(self.table.item(row, 2).text()))
-        except:
+        except (ValueError, TypeError):
             self.input_normal.setValue(0)
         try:
             self.input_mesai.setValue(float(self.table.item(row, 3).text()))
-        except:
+        except (ValueError, TypeError):
             self.input_mesai.setValue(0)
         self.input_aciklama.setText(self.table.item(row, 4).text())
 
@@ -175,7 +180,7 @@ class HolidaysPage(QWidget):
             QMessageBox.information(self, "Başarılı", "Tatil kaydedildi.")
         except Exception as e:
             QMessageBox.critical(self, "Veritabanı Hatası", f"Kaydedilemedi: {e}")
-            print(f"DB error: {e}")
+            log_error(f"Tatil DB hatası: {e}")
 
     def delete_holiday(self):
         rows = self.table.selectionModel().selectedRows()
@@ -194,7 +199,7 @@ class HolidaysPage(QWidget):
             QMessageBox.information(self, "Başarılı", "Tatil silindi.")
         except Exception as e:
             QMessageBox.critical(self, "Veritabanı Hatası", f"Silinemedi: {e}")
-            print(f"DB error: {e}")
+            log_error(f"Tatil DB hatası: {e}")
 
     def seed_default_holidays(self):
         reply = QMessageBox.question(
@@ -211,4 +216,4 @@ class HolidaysPage(QWidget):
             QMessageBox.information(self, "Başarılı", "Varsayılan tatiller eklendi.")
         except Exception as e:
             QMessageBox.critical(self, "Veritabanı Hatası", f"Eklenemedi: {e}")
-            print(f"DB error: {e}")
+            log_error(f"Tatil DB hatası: {e}")

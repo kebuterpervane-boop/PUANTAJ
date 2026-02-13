@@ -1,6 +1,7 @@
 puantaj.db
 __pycache__/
 backups/
+migrations_backups/
 pdf_output/
 build/
 dist/

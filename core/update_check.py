@@ -6,7 +6,7 @@ def parse_version(version: str) -> tuple:
     """Versiyon string'ini karşılaştırılabilir tuple'a çevirir (1.2.3 -> (1, 2, 3))"""
     try:
         return tuple(map(int, version.lstrip('v').split('.')))
-    except:
+    except Exception:
         return (0, 0, 0)
 
 def check_for_update() -> Optional[Dict[str, str]]:

@@ -149,8 +149,12 @@ class IzinYonetimiPage(QWidget):
         
         # Başlık
         title = QLabel("📋 İzin Yönetimi")
-        title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         izin_layout.addWidget(title)
+
+        desc = QLabel("İzin kayıtlarını ekleyin, takip edin ve izin türü ayarlarını yönetin.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        izin_layout.addWidget(desc)
         
         # Filtre
         filter_layout = QHBoxLayout()
@@ -176,6 +180,8 @@ class IzinYonetimiPage(QWidget):
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels(["Personel", "Tarih", "Tür", "Gün", "Durum", "İşlemler"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { alternate-background-color: #2a2a2a; }")
         izin_layout.addWidget(self.table)
         
         # Butonlar
@@ -203,6 +209,7 @@ class IzinYonetimiPage(QWidget):
         
         # Checkbox grubu
         self.checkbox_dict = {}
+        self.db.init_izin_ayarlari()  # WHY: normalize/clean legacy mojibake izin types before rendering checkboxes.
         izin_ayarlari = self.db.get_izin_ayarlari()
         
         group = QGroupBox("İzin Türleri")
@@ -296,7 +303,14 @@ class IzinYonetimiPage(QWidget):
             vals = dlg.get_values()
             try:
                 # add_izin_with_auto_kayit kullan - otomatik kayıt yapılacaksa yapılır
-                self.db.add_izin_with_auto_kayit(vals['personel'], vals['tarih'], vals['tur'], vals['gun'], vals['aciklama'])
+                self.db.add_izin_with_auto_kayit(
+                    vals['personel'],
+                    vals['tarih'],
+                    vals['tur'],
+                    vals['gun'],
+                    vals['aciklama'],
+                    tersane_id=self.tersane_id,  # WHY: ensure auto-created daily record is visible in active tersane for legacy personnel rows.
+                )
                 QMessageBox.information(self, "Başarılı", f"{vals['personel']} için {vals['gun']} gün {vals['tur']} izni eklendi.")
                 self.load_data()
                 self.signal_manager.data_updated.emit()

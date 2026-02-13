@@ -342,6 +342,7 @@ class UploadPage(QWidget):
         self.signal_manager = signal_manager
         self.tersane_id = 0
         self._needs_refresh = False  # NEW: lazy-load flag (upload page is light but kept consistent).
+        self.setAcceptDrops(True)
         self.setup_ui()
 
     def set_tersane_id(self, tersane_id, refresh=True):
@@ -360,13 +361,17 @@ class UploadPage(QWidget):
         layout = QVBoxLayout(self)
 
         # Baslik
-        title = QLabel("Excel / CSV Dosyasi Yukleme")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 4px;")
+        title = QLabel("Excel / CSV Dosyası Yükleme")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         layout.addWidget(title)
 
-        lbl_info = QLabel("Ipucu: Dosyanizin ilk satirinda basliklar olmasa bile sistem otomatik bulmaya calisir.\n"
-                          "Gerekli Sutunlar: Tarih, Ad Soyad\n"
-                          "Opsiyonel: Giris, Cikis, Kayip Sure")
+        desc = QLabel("Puantaj verilerini dosyadan hızlıca içeri aktarın.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
+
+        lbl_info = QLabel("İpucu: Dosyanızın ilk satırında başlıklar olmasa bile sistem otomatik bulmaya çalışır.\n"
+                          "Gerekli Sütunlar: Tarih, Ad Soyad\n"
+                          "Opsiyonel: Giriş, Çıkış, Kayıp Süre")
         lbl_info.setStyleSheet("color: #aaa; font-style: italic; margin-bottom: 10px;")
         layout.addWidget(lbl_info)
 
@@ -378,7 +383,34 @@ class UploadPage(QWidget):
         layout.addWidget(self.lbl_month_info)
         self.update_month_info()
 
-        btn = QPushButton("Dosya Sec ve Yukle")
+        drop_zone = QFrame()
+        drop_zone.setStyleSheet("""
+            QFrame {
+                border: 2px dashed #555;
+                border-radius: 12px;
+                background-color: #1e1e1e;
+                min-height: 120px;
+            }
+            QFrame:hover {
+                border-color: #2196F3;
+                background-color: #1a2332;
+            }
+        """)
+        drop_layout = QVBoxLayout(drop_zone)
+        drop_layout.setAlignment(Qt.AlignCenter)
+
+        drop_icon = QLabel("📂")
+        drop_icon.setStyleSheet("font-size: 36px;")
+        drop_icon.setAlignment(Qt.AlignCenter)
+        drop_layout.addWidget(drop_icon)
+
+        drop_text = QLabel("Dosyayı buraya sürükleyin\nveya aşağıdaki butona tıklayın")
+        drop_text.setStyleSheet("color: #888; font-size: 13px;")
+        drop_text.setAlignment(Qt.AlignCenter)
+        drop_layout.addWidget(drop_text)
+        layout.addWidget(drop_zone)
+
+        btn = QPushButton("Dosya Seç ve Yükle")
         btn.setStyleSheet("background-color: #2196F3; color: white; padding: 12px; font-weight: bold; font-size: 13px; border-radius: 6px;")
         btn.clicked.connect(self.start_upload)
         layout.addWidget(btn)
@@ -407,12 +439,12 @@ class UploadPage(QWidget):
                     "FROM gunluk_kayit GROUP BY ym ORDER BY ym DESC"
                 ).fetchall()
             if rows:
-                lines = [f"  {r[0]}  ({r[1]} gun, {r[2]} personel)" for r in rows[:12]]
-                txt = "Yuklu Donemler:\n" + "\n".join(lines)
+                lines = [f"  {r[0]}  ({r[1]} gün, {r[2]} personel)" for r in rows[:12]]
+                txt = "Yüklü Dönemler:\n" + "\n".join(lines)
                 if len(rows) > 12:
-                    txt += f"\n  ... ve {len(rows) - 12} donem daha"
+                    txt += f"\n  ... ve {len(rows) - 12} dönem daha"
             else:
-                txt = "Henuz yuklu donem yok."
+                txt = "Henüz yüklü dönem yok."
             self.lbl_month_info.setText(txt)
         except Exception:
             self.lbl_month_info.setText("")
@@ -423,21 +455,48 @@ class UploadPage(QWidget):
     def upload_finished(self, total):
         self.update_month_info()
         if total > 0:
-            self.append_log(f"<span style='color:#66BB6A;'>{total} kayit basariyla islendi.</span>")
+            self.append_log(f"<span style='color:#66BB6A;'>{total} kayıt başarıyla işlendi.</span>")
             self.signal_manager.data_updated.emit()
         else:
-            self.append_log("<span style='color:#FFA726;'>Hicbir kayit eklenmedi.</span>")
+            self.append_log("<span style='color:#FFA726;'>Hiçbir kayıt eklenmedi.</span>")
         self.progress.setValue(100)
 
     def start_upload(self):
-        # 1) Dosya secimi
         cfg = load_config()
         last_dir = cfg.get("last_upload_dir", "")
-        files, _ = QFileDialog.getOpenFileNames(self, "Excel Sec", last_dir, "Excel/CSV Files (*.xlsx *.xls *.csv)")
+        files, _ = QFileDialog.getOpenFileNames(self, "Excel Seç", last_dir, "Excel/CSV Files (*.xlsx *.xls *.csv)")
+        if not files:
+            return
+        self._process_file(files[0], files)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                local_file = url.toLocalFile()
+                if local_file.lower().endswith(('.xlsx', '.xls', '.csv')):
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasUrls():
+            event.ignore()
+            return
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if path.lower().endswith(('.xlsx', '.xls', '.csv')):
+                self._process_file(path)
+                event.acceptProposedAction()
+                return
+        event.ignore()
+
+    def _process_file(self, path, files=None):
+        files = files or [path]
         if not files:
             return
         try:
-            cfg["last_upload_dir"] = os.path.dirname(files[0])
+            cfg = load_config()
+            cfg["last_upload_dir"] = os.path.dirname(path)
             save_config(cfg)
         except Exception:
             pass
@@ -449,18 +508,18 @@ class UploadPage(QWidget):
         import pandas as pd
         df = None
         try:
-            df = pd.read_excel(files[0])
+            df = pd.read_excel(path)
         except Exception:
             try:
-                df = pd.read_csv(files[0])
+                df = pd.read_csv(path)
             except Exception:
                 try:
-                    df = pd.read_csv(files[0], sep=';')
+                    df = pd.read_csv(path, sep=';')
                 except Exception:
-                    QMessageBox.warning(self, "Dosya Hatasi", "Dosya okunamadi. Lutfen format kontrol edin.")
+                    QMessageBox.warning(self, "Dosya Hatası", "Dosya okunamadı. Lütfen formatı kontrol edin.")
                     return
         if df is None or df.empty:
-            QMessageBox.warning(self, "Dosya Hatasi", "Dosya bos veya okunamadi.")
+            QMessageBox.warning(self, "Dosya Hatası", "Dosya boş veya okunamadı.")
             return
 
         # Header row detection (same as worker)

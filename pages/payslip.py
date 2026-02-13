@@ -36,7 +36,7 @@ def get_pdf_fonts():
                     pdfmetrics.registerFont(TTFont(bold_name, bold_path))
                     return reg_name, bold_name
                 return reg_name, reg_name
-            except: continue
+            except Exception: continue
     return "Helvetica", "Helvetica-Bold"
 
 class PayslipLoadWorker(QObject):
@@ -226,8 +226,12 @@ class PayslipPage(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
         title = QLabel("🧾 Bordro Fişi Oluşturucu")
-        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #fff;")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #fff; margin-bottom: 2px;")
         layout.addWidget(title)
+
+        desc = QLabel("Seçilen personel için dönem bazlı bordro fişi oluşturun.")
+        desc.setStyleSheet("color: #999; font-size: 12px; margin-bottom: 10px;")
+        layout.addWidget(desc)
         
         # Filtreler (Yıl, Ay, Personel)
         filter_frame = QFrame()
@@ -240,8 +244,8 @@ class PayslipPage(QWidget):
         self.combo_year.currentTextChanged.connect(self.load_personnel)  # WHY: keep list in sync with selected period.
         
         self.combo_month = QComboBox()
-        self.combo_month.addItems(["Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran", 
-                                   "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"])
+        self.combo_month.addItems(["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
+                                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"])
         self.combo_month.setCurrentIndex(datetime.now().month - 1)
         self.combo_month.currentIndexChanged.connect(self.load_personnel)  # WHY: keep list in sync with selected period.
         
@@ -251,7 +255,7 @@ class PayslipPage(QWidget):
         btn_refresh = QPushButton("🔄 Personeli Yenile")
         btn_refresh.clicked.connect(self.load_personnel)
         
-        filter_layout.addWidget(QLabel("Donem:"))
+        filter_layout.addWidget(QLabel("Dönem:"))
         filter_layout.addWidget(self.combo_month)
         filter_layout.addWidget(self.combo_year)
         filter_layout.addSpacing(20)
@@ -467,7 +471,7 @@ class PayslipPage(QWidget):
             
             # Personel Bilgisi
             info = [
-                ["Personel:", person_name, "Donem:", f"{month}/{year}"],
+                ["Personel:", person_name, "Dönem:", f"{month}/{year}"],
                 ["Ekip:", data['ekip'] or "-", "Temel Ucret:", f"{data['maas']:,.2f} TL"]
             ]
             t = Table(info, colWidths=[3*cm, 6*cm, 3*cm, 5*cm])

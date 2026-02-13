@@ -151,14 +151,16 @@ class DashboardPage(QWidget):
         self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels(["Personel", "Ekip", "Maaş", "Normal", "Mesai", "Birim Üc.", "Brüt", "Ekstra", "Avans", "NET"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.table.setStyleSheet("QTableWidget { background-color: #2b2b2b; color: white; gridline-color: #444; border: none; }")
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet("QTableWidget { background-color: #2b2b2b; color: white; gridline-color: #444; border: none; alternate-background-color: #2a2a2a; }")
         
         self.table_teams = QTableWidget()
         self.table_teams.setColumnCount(2)
         self.table_teams.setHorizontalHeaderLabels(["Ekip", "Toplam Hakediş"])
         self.table_teams.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table_teams.setAlternatingRowColors(True)
         self.table_teams.setStyleSheet("""
-            QTableWidget { background-color: #2b2b2b; color: white; gridline-color: #444; border: 1px solid #555; }
+            QTableWidget { background-color: #2b2b2b; color: white; gridline-color: #444; border: 1px solid #555; alternate-background-color: #2a2a2a; }
             QHeaderView::section { background-color: #4CAF50; color: white; font-weight: bold; }
         """)
         self.table_teams.setFixedWidth(300)

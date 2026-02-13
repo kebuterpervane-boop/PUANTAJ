@@ -158,23 +158,24 @@ class MainWindow(QMainWindow):
         self.page_settings = SettingsPage(self.signal_manager)
 
         menus = [
-            ("📊 Dashboard", self.page_dashboard),
-            ("📥 Veri Yükle", self.page_upload),
-            ("✏️ Günlük Kayıtlar", self.page_records),
-            ("👥 Personel", self.page_personnel),
-            ("💸 Avans/Kesinti", self.page_avans),
-            ("📅 Resmi Tatiller", self.page_holidays),
-            ("🧾 Bordro Fişi", self.page_payslip),
-            ("💰 BES Yönetimi", self.page_bes),
-            ("📋 İzin Yönetimi", self.page_izin),
-            ("📈 Raporlar", self.page_raporlar),
-            ("⚙️ Ayarlar", self.page_settings),
+            ("📊 Dashboard", self.page_dashboard, "Genel durum, özet metrikler ve hızlı görünüm."),
+            ("📥 Veri Yükle", self.page_upload, "Excel/CSV puantaj verilerini içe aktar."),
+            ("✏️ Günlük Kayıtlar", self.page_records, "Günlük giriş/çıkış, normal ve mesai kayıtlarını düzenle."),
+            ("👥 Personel", self.page_personnel, "Personel kartları, ekip ve ücret bilgileri."),
+            ("💸 Avans/Kesinti", self.page_avans, "Avans ve kesinti işlemlerini yönet."),
+            ("📅 Resmi Tatiller", self.page_holidays, "Resmi tatil günlerini ekle ve güncelle."),
+            ("🧾 Bordro Fişi", self.page_payslip, "Bordro fişlerini oluştur ve görüntüle."),
+            ("💰 BES Yönetimi", self.page_bes, "BES oranlarını ve personel kesintilerini yönet."),
+            ("📋 İzin Yönetimi", self.page_izin, "İzin kayıtları ve izin türü ayarları."),
+            ("📈 Raporlar", self.page_raporlar, "Özet raporları görüntüle ve dışa aktar."),
+            ("⚙️ Ayarlar", self.page_settings, "Uygulama, hesaplama ve yedekleme ayarları."),
         ]
 
-        for i, (name, widget) in enumerate(menus):
+        for i, (name, widget, tooltip) in enumerate(menus):
             self.pages.addWidget(widget)
             btn = QPushButton(name)
             btn.setCheckable(True)
+            btn.setToolTip(tooltip)
             btn.setStyleSheet("""
                 QPushButton { text-align: left; padding: 12px; color: #bbb; border: none; font-size: 14px; }
                 QPushButton:checked { background-color: #333; color: white; border-left: 4px solid #2196F3; }
@@ -200,9 +201,6 @@ class MainWindow(QMainWindow):
         self._broadcast_tersane_id()
 
         self.buttons[0].click()
-
-        # Tersane değiştiğinde tüm sayfalara sinyal
-        self.signal_manager.tersane_changed.connect(self._on_tersane_signal)
 
         # Settings sayfası tersane eklediğinde combo'yu yenile
         self.signal_manager.data_updated.connect(self._refresh_tersane_combo_if_needed)
@@ -263,10 +261,6 @@ class MainWindow(QMainWindow):
         # Sinyal de gönder
         self.signal_manager.tersane_changed.emit(tid)
 
-    def _on_tersane_signal(self, tersane_id):
-        """Sinyal ile gelen tersane değişikliği."""
-        pass  # broadcast zaten yapıldı
-
     def _refresh_tersane_combo_if_needed(self):
         """Settings sayfasında tersane eklendiğinde combo'yu yeniler."""
         old_count = self.combo_tersane_global.count()
@@ -326,6 +320,47 @@ class MainWindow(QMainWindow):
                 page.refresh_if_needed()  # WHY: defer heavy loads until page is visible.
         except Exception:
             pass  # SAFEGUARD: page refresh must not crash navigation.
+
+    def closeEvent(self, event):
+        """Kapanista kaydedilmemis degisiklikler icin kullanicidan onay al."""
+        try:
+            personnel_page = getattr(self, "page_personnel", None)
+            save_thread = getattr(personnel_page, "_save_thread", None) if personnel_page else None
+            if save_thread and save_thread.isRunning():
+                reply = QMessageBox.question(
+                    self,
+                    "Kayıt Devam Ediyor",
+                    "Personel değişiklikleri arka planda kaydediliyor.\nYine de uygulamayı kapatmak istiyor musunuz?",
+                    QMessageBox.Yes | QMessageBox.No,
+                )
+                if reply != QMessageBox.Yes:
+                    event.ignore()
+                    return
+        except Exception:
+            pass  # SAFEGUARD: close guard should not crash the app.
+
+        unsaved_sections = []
+        try:
+            personnel_page = getattr(self, "page_personnel", None)
+            dirty_rows = len(getattr(personnel_page, "_changed_rows", [])) if personnel_page else 0
+            if dirty_rows > 0:
+                unsaved_sections.append(f"Personel: {dirty_rows} satır")
+        except Exception:
+            pass  # SAFEGUARD: optional page state; ignore on close.
+
+        if unsaved_sections:
+            details = "\n".join(f"- {item}" for item in unsaved_sections)
+            reply = QMessageBox.question(
+                self,
+                "Kaydedilmemiş Değişiklikler",
+                f"Aşağıdaki kaydedilmemiş değişiklikler bulundu:\n{details}\n\nYine de uygulamayı kapatmak istiyor musunuz?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                event.ignore()
+                return
+
+        event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
