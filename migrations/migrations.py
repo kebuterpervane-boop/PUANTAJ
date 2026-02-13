@@ -240,6 +240,72 @@ def migration_005_convert_rules_to_exit_time(conn):
     conn.commit()
 
 
+def migration_006_enforce_avans_kesinti_constraints(conn):
+    """Enforce valid tur/tutar values in avans_kesinti and add helpful indexes."""
+    cur = conn.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='avans_kesinti'")
+    exists = cur.fetchone() is not None
+
+    if not exists:
+        cur.execute(
+            '''CREATE TABLE avans_kesinti (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tarih TEXT,
+                    ad_soyad TEXT,
+                    tur TEXT NOT NULL CHECK(tur IN ('Avans', 'Kesinti')),
+                    tutar REAL NOT NULL CHECK(tutar >= 0),
+                    aciklama TEXT
+                )'''
+        )
+    else:
+        create_sql_row = cur.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='avans_kesinti'"
+        ).fetchone()
+        create_sql = (create_sql_row[0] or "") if create_sql_row else ""
+        has_tur_check = "CHECK(tur IN ('Avans', 'Kesinti'))" in create_sql
+        has_tutar_check = "CHECK(tutar >= 0)" in create_sql
+
+        if not (has_tur_check and has_tutar_check):
+            cur.execute(
+                '''CREATE TABLE avans_kesinti_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tarih TEXT,
+                        ad_soyad TEXT,
+                        tur TEXT NOT NULL CHECK(tur IN ('Avans', 'Kesinti')),
+                        tutar REAL NOT NULL CHECK(tutar >= 0),
+                        aciklama TEXT
+                    )'''
+            )
+            # Normalize legacy rows to match new constraints.
+            cur.execute(
+                '''INSERT INTO avans_kesinti_new (id, tarih, ad_soyad, tur, tutar, aciklama)
+                   SELECT id,
+                          tarih,
+                          ad_soyad,
+                          CASE
+                              WHEN TRIM(COALESCE(tur, '')) = 'Avans' THEN 'Avans'
+                              WHEN TRIM(COALESCE(tur, '')) = 'Kesinti' THEN 'Kesinti'
+                              ELSE 'Kesinti'
+                          END,
+                          CASE
+                              WHEN tutar IS NULL THEN 0
+                              WHEN tutar < 0 THEN ABS(tutar)
+                              ELSE tutar
+                          END,
+                          aciklama
+                   FROM avans_kesinti'''
+            )
+            cur.execute("DROP TABLE avans_kesinti")
+            cur.execute("ALTER TABLE avans_kesinti_new RENAME TO avans_kesinti")
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_avans_kesinti_tarih ON avans_kesinti(tarih)")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_avans_kesinti_ad_tarih ON avans_kesinti(ad_soyad, tarih)"
+    )
+    conn.commit()
+
+
 # Ordered list of migrations
 MIGRATIONS = [
     migration_001_add_phone_to_personel,
@@ -247,4 +313,5 @@ MIGRATIONS = [
     migration_003_ensure_mesai_katsayilari_schema,
     migration_004_ensure_yevmiye_katsayilari_schema,
     migration_005_convert_rules_to_exit_time,
+    migration_006_enforce_avans_kesinti_constraints,
 ]

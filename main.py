@@ -1,3 +1,4 @@
+import os
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QPushButton, QLabel, QStackedWidget,
@@ -5,22 +6,27 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette, QColor
 
-from user_config import load_config, save_config
-from signals import SignalManager
-from database import Database
-from page_upload import UploadPage
-from page_records import RecordsPage
-from page_personnel import PersonnelPage
-from page_avans import AvansPage
-from page_dashboard import DashboardPage
-from page_holidays import HolidaysPage
-from page_payslip import PayslipPage
-from page_settings import SettingsPage
-from page_bes import BesYonetimiPage
-from page_izin import IzinYonetimiPage
-from page_raporlar import RaporlarPage
-from version import __version__, __app_name__
-from update_check import check_for_update
+from core.user_config import load_config, save_config
+from core.signals import SignalManager
+from core.database import Database
+from pages.upload import UploadPage
+from pages.records import RecordsPage
+from pages.personnel import PersonnelPage
+from pages.avans import AvansPage
+from pages.dashboard import DashboardPage
+from pages.holidays import HolidaysPage
+from pages.payslip import PayslipPage
+from pages.settings import SettingsPage
+from pages.bes import BesYonetimiPage
+from pages.izin import IzinYonetimiPage
+from pages.raporlar import RaporlarPage
+from core.version import __version__, __app_name__
+from core.update_check import check_for_update
+
+def resource_path(relative_path):
+    """Returns resource path for both source and PyInstaller onefile runtime."""
+    base_path = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, relative_path)
 
 class LoginDialog(QDialog):
     def __init__(self, db):
@@ -270,8 +276,7 @@ class MainWindow(QMainWindow):
 
     def show_help(self):
         from PySide6.QtWidgets import QTextEdit
-        import os
-        help_path = os.path.join(os.path.dirname(__file__), "KULLANICI_KILAVUZU.md")
+        help_path = resource_path("KULLANICI_KILAVUZU.md")
         text = "Kılavuz bulunamadı."
         if os.path.exists(help_path):
             with open(help_path, encoding="utf-8") as f:
@@ -307,7 +312,7 @@ class MainWindow(QMainWindow):
                     import webbrowser
                     webbrowser.open(update_info['release_url'])
         except Exception as e:
-            from app_logger import log_error
+            from core.app_logger import log_error
             log_error(f"Güncelleme kontrolü başarısız: {e}")
 
     def change_page(self, idx):

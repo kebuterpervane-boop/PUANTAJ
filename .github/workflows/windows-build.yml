@@ -37,8 +37,17 @@ jobs:
       - name: Read version
         shell: pwsh
         run: |
-          $v = python -c "import version; print(version.__version__)"
+          $v = python -c "from core.version import __version__; print(__version__)"
           "APP_VERSION=$v" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Run quality checks
+        run: |
+          python -m py_compile core/database.py
+          python -m py_compile core/hesaplama.py
+          python -m py_compile core/input_validators.py
+          python -m py_compile migrations/migrations.py
+          python -m py_compile pages/settings.py
+          python -m unittest discover -s tests -p "test_*.py"
 
       - name: Build EXE
         run: |
