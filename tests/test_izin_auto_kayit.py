@@ -148,6 +148,63 @@ class IzinAutoKayitTests(unittest.TestCase):
         self.assertEqual(int(izin_count), 1)
         self.assertEqual(int(gunluk_count), 0)
 
+    def test_personnel_save_does_not_overwrite_auto_izin_record(self):
+        self._insert_personel("TEST PERSON 5", tersane_id=3, firma_id=1)
+        self.db.set_izin_otomatik_kayit("Raporlu", True)
+        self.db.add_izin_with_auto_kayit("TEST PERSON 5", "2026-01-09", "Raporlu", 1, "test")
+
+        self.db.update_personnel(
+            "TEST PERSON 5",
+            32000.0,
+            "A",
+            ozel_durum=None,
+            ekstra_odeme=0.0,
+            yillik_izin_hakki=14.0,
+            ise_baslangic=None,
+            cikis_tarihi=None,
+            ekstra_odeme_not="",
+            avans_not="",
+            yevmiyeci_mi=0,
+            tersane_id=3,
+        )
+
+        with self.db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT hesaplanan_normal, hesaplanan_mesai, aciklama, manuel_kilit "
+                "FROM gunluk_kayit WHERE ad_soyad=? AND tarih=?",
+                ("TEST PERSON 5", "2026-01-09"),
+            ).fetchone()
+
+        self.assertIsNotNone(row)
+        self.assertEqual(float(row[0] or 0), 7.5)
+        self.assertEqual(float(row[1] or 0), 0.0)
+        self.assertEqual(row[2], "Raporlu")
+        self.assertEqual(int(row[3] or 0), 1)
+
+    def test_process_izin_marks_record_approved(self):
+        self._insert_personel("TEST PERSON 6", tersane_id=4, firma_id=1)
+        self.db.set_izin_otomatik_kayit("Raporlu", True)
+        izin_id = self.db.add_izin_with_auto_kayit("TEST PERSON 6", "2026-01-10", "Raporlu", 1, "test")
+
+        new_id = self.db.process_izin(izin_id, tersane_id=4)
+
+        self.assertIsNotNone(new_id)
+        with self.db.get_connection() as conn:
+            izin = conn.execute(
+                "SELECT onay_durumu FROM izin_takip WHERE id=?",
+                (new_id,),
+            ).fetchone()
+            gunluk = conn.execute(
+                "SELECT aciklama, manuel_kilit FROM gunluk_kayit WHERE ad_soyad=? AND tarih=?",
+                ("TEST PERSON 6", "2026-01-10"),
+            ).fetchone()
+
+        self.assertIsNotNone(izin)
+        self.assertEqual(int(izin[0] or 0), 1)
+        self.assertIsNotNone(gunluk)
+        self.assertEqual(gunluk[0], "Raporlu")
+        self.assertEqual(int(gunluk[1] or 0), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

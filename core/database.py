@@ -1625,7 +1625,7 @@ class Database:
                         break
             if not (res and res[0]):
                 conn.commit()
-                return
+                return izin_id
 
             normal_hak = 1.0 if yevmiyeci_mi else float(NORMAL_GUNLUK_SAAT)
             izin_tarihleri = self._izin_kapsam_tarihleri(izin_tarihi, gun_sayisi)
@@ -1676,7 +1676,8 @@ class Database:
                             "UPDATE gunluk_kayit "
                             "SET giris_saati='', cikis_saati='', kayip_sure_saat='', hesaplanan_normal=?, hesaplanan_mesai=0.0, aciklama=?, "
                             "tersane_id=CASE WHEN COALESCE(tersane_id,0)=0 THEN ? ELSE tersane_id END, "
-                            "firma_id=CASE WHEN COALESCE(firma_id,0)=0 THEN ? ELSE firma_id END "
+                            "firma_id=CASE WHEN COALESCE(firma_id,0)=0 THEN ? ELSE firma_id END, "
+                            "manuel_kilit=1 "
                             "WHERE id=?",
                             (normal_hak, canonical_izin_turu, personel_tersane_id, personel_firma_id, rec_id)
                         )
@@ -1692,7 +1693,7 @@ class Database:
                         c.execute(
                             "INSERT INTO gunluk_kayit "
                             "(tarih, ad_soyad, giris_saati, cikis_saati, kayip_sure_saat, hesaplanan_normal, hesaplanan_mesai, aciklama, tersane_id, firma_id, manuel_kilit) "
-                            "VALUES (?, ?, '', '', '', ?, 0.0, ?, ?, ?, 0)",
+                            "VALUES (?, ?, '', '', '', ?, 0.0, ?, ?, ?, 1)",
                             (kayit_tarihi, ad_soyad, normal_hak, canonical_izin_turu, personel_tersane_id, personel_firma_id)
                         )
                     else:
@@ -1712,10 +1713,11 @@ class Database:
                     )
 
             conn.commit()
+            return izin_id
 
 
     def add_izin(self, ad_soyad, izin_tarihi, izin_turu, gun_sayisi=1.0, aciklama="", tersane_id=0):
-        self.add_izin_with_auto_kayit(ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama, tersane_id=tersane_id)
+        return self.add_izin_with_auto_kayit(ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama, tersane_id=tersane_id)
 
 
     def get_izin_list(self, year, month, tersane_id=None):
@@ -1741,6 +1743,30 @@ class Database:
         with self.get_connection() as conn:
             conn.execute("UPDATE izin_takip SET onay_durumu=1 WHERE id=?", (izin_id,))
             conn.commit()
+
+    def process_izin(self, izin_id, tersane_id=0):
+        """Var olan bir izin kaydini yeniden uygular ve onayliya ceker."""
+        with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama FROM izin_takip WHERE id=?",
+                (izin_id,),
+            ).fetchone()
+        if not row:
+            return None
+
+        ad_soyad, izin_tarihi, izin_turu, gun_sayisi, aciklama = row
+        self.delete_izin(izin_id)
+        new_id = self.add_izin_with_auto_kayit(
+            ad_soyad,
+            izin_tarihi,
+            izin_turu,
+            gun_sayisi,
+            aciklama,
+            tersane_id=tersane_id,
+        )
+        if new_id:
+            self.approve_izin(new_id)
+        return new_id
 
 
     def delete_izin(self, izin_id):

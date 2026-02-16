@@ -43,10 +43,11 @@ class RecalcWorker(QObject):
                 sql = """
                     SELECT id, tarih, ad_soyad, giris_saati, cikis_saati, kayip_sure_saat
                     FROM gunluk_kayit
+                    WHERE COALESCE(manuel_kilit,0)=0
                 """
                 params = []
                 if self.tersane_id and self.tersane_id > 0:
-                    sql += " WHERE tersane_id = ?"
+                    sql += " AND tersane_id = ?"
                     params.append(self.tersane_id)
                 sql += " ORDER BY tarih DESC"
                 records = c.execute(sql, tuple(params)).fetchall()
