@@ -581,5 +581,6 @@ class PayslipPage(QWidget):
             return True
             
         except Exception as e:
-            print(f"PDF Hata: {e}")
-            return False
+            from core.app_logger import log_error
+            log_error(f"PDF Hata ({person_name}): {e}")
+            raise

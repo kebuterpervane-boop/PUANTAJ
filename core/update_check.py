@@ -42,6 +42,7 @@ def check_for_update() -> Optional[Dict[str, str]]:
                     'release_url': data.get('html_url')
                 }
     except Exception as e:
-        print(f"Güncelleme kontrolü başarısız: {e}")
-    
+        from core.app_logger import log_error
+        log_error(f"Güncelleme kontrolü başarısız: {e}")
+
     return None

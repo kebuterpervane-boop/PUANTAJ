@@ -341,7 +341,7 @@ class RecordsPage(QWidget):
     def _on_period_changed(self):
         year = int(self.combo_year.currentText())
         month = self.combo_month.currentIndex() + 1
-        firma_id = 1  # Gelişmiş firma desteği varsa buradan alınmalı
+        firma_id = int(getattr(self.db, 'current_firma_id', 1) or 1)
         locked = self.db.is_month_locked(year, month, firma_id)
         self._set_month_locked_ui(locked)
         self.load_data()
@@ -615,7 +615,7 @@ class RecordsPage(QWidget):
     def show_context_menu(self, pos: QPoint):
         year = int(self.combo_year.currentText())
         month = self.combo_month.currentIndex() + 1
-        firma_id = 1
+        firma_id = int(getattr(self.db, 'current_firma_id', 1) or 1)
         if self.db.is_month_locked(year, month, firma_id):
             QMessageBox.warning(self, "Ay Kilitli", "Bu ay kilitlidir. Sağ tık işlemleri devre dışı.")
             return
@@ -802,7 +802,6 @@ class RecordsPage(QWidget):
         """Seçili satırlara işlem uygula (transactional, hesaplama.py ile)"""
         try:
             selected_rows = set(idx.row() for idx in self.table.selectionModel().selectedRows())
-            print(f"[DEBUG] apply_to_selected: action={action_type}, selected_rows={sorted(selected_rows)}")
             self.table.blockSignals(True)
             from core.hesaplama import hesapla_hakedis
             updates = []
@@ -874,10 +873,13 @@ class RecordsPage(QWidget):
                 self.db.bulk_update_hakedis(updates)
             self.table.blockSignals(False)
             self.signal_manager.data_updated.emit()
-            print(f"[DEBUG] apply_to_selected: Güncelleme ve refresh tamamlandı.")
         except Exception as e:
             import traceback
-            print(f"[ERROR] apply_to_selected hata: {e}\n{traceback.format_exc()}")
+            from core.app_logger import log_error
+            self.table.blockSignals(False)
+            log_error(f"apply_to_selected hata: {e}\n{traceback.format_exc()}")
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Hata", f"İşlem uygulanırken hata oluştu: {e}")
 
     def load_data(self):
         self.table.blockSignals(True)

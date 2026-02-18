@@ -1,8 +1,9 @@
 import pandas as pd
 from datetime import datetime, date
+# WHY: Keep dashboard firma context and export dialog import stable in multi-firma usage.
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, 
                              QTableWidgetItem, QHeaderView, QPushButton, 
-                             QLabel, QComboBox, QFileDialog, QMessageBox, QFrame, QSplitter, QGroupBox, QDialog)
+                             QLabel, QComboBox, QFileDialog, QMessageBox, QFrame, QSplitter, QGroupBox, QDialog, QApplication)
 from PySide6.QtWidgets import QProgressDialog  # WHY: show export progress without freezing the UI.
 from PySide6.QtCore import Qt
 from PySide6.QtCore import QThread, Signal, Slot, QObject  # WHY: background export worker support.
@@ -75,6 +76,14 @@ class DashboardPage(QWidget):
         
         # --- Sinyal Gelince Hesapla (Lazy) ---
         self.signal_manager.data_updated.connect(self._on_data_updated)  # NEW: avoid heavy refresh on hidden tab.
+
+    def _get_active_firma_id(self):
+        # WHY: dashboard DB calls must always use latest selected firma, not stale init value.
+        try:
+            self.firma_id = int(getattr(self.db, 'current_firma_id', self.firma_id) or self.firma_id or 1)
+        except Exception:
+            self.firma_id = 1
+        return self.firma_id
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -207,6 +216,7 @@ class DashboardPage(QWidget):
         """Bugünkü giriş-çıkış durumunu gösterir"""
         try:
             today_str = date.today().strftime("%Y-%m-%d")
+            firma_id = self._get_active_firma_id()
             
             # Bugünkü kayıtları çek
             with self.db.get_connection() as conn:
@@ -217,20 +227,20 @@ class DashboardPage(QWidget):
                         SELECT ad_soyad, giris_saati, cikis_saati 
                         FROM gunluk_kayit 
                         WHERE tarih = ? AND firma_id = ? AND tersane_id = ?
-                    """, (today_str, self.firma_id, self.tersane_id))
+                    """, (today_str, firma_id, self.tersane_id))
                 else:
                     c.execute("""
                         SELECT ad_soyad, giris_saati, cikis_saati 
                         FROM gunluk_kayit 
                         WHERE tarih = ? AND firma_id = ?
-                    """, (today_str, self.firma_id))
+                    """, (today_str, firma_id))
                 today_records = c.fetchall()
                 
                 # Tüm aktif personeli çek
                 if self.tersane_id and self.tersane_id > 0:
-                    c.execute("SELECT ad_soyad FROM personel WHERE firma_id = ? AND tersane_id = ? ORDER BY ad_soyad", (self.firma_id, self.tersane_id))
+                    c.execute("SELECT ad_soyad FROM personel WHERE firma_id = ? AND tersane_id = ? ORDER BY ad_soyad", (firma_id, self.tersane_id))
                 else:
-                    c.execute("SELECT ad_soyad FROM personel WHERE firma_id = ? ORDER BY ad_soyad", (self.firma_id,))
+                    c.execute("SELECT ad_soyad FROM personel WHERE firma_id = ? ORDER BY ad_soyad", (firma_id,))
                 all_personnel = {row[0] for row in c.fetchall()}
             
             # Bugün gelenleri ayır
@@ -288,7 +298,11 @@ class DashboardPage(QWidget):
         try:
             y = int(self.combo_year.currentText())
             m = self.combo_month.currentIndex() + 1
-            data = self.db.get_dashboard_data(y, m, tersane_id=self.tersane_id)
+            data = self.db.get_dashboard_data(
+                y, m,
+                tersane_id=self.tersane_id,
+                firma_id=self._get_active_firma_id(),
+            )
             self.current_data = data
             self.table.setRowCount(len(data))
             
@@ -414,7 +428,8 @@ class DashboardPage(QWidget):
                 # Silinmiş ya da yeniden düzenlenmiş widget'larda hata almamak için sessizce geç
                 pass
         except Exception as e:
-            print(f"Dashboard calculate error: {e}")
+            from core.app_logger import log_error
+            log_error(f"Dashboard calculate error: {e}")
 
     def card_context_menu(self, pos):
         """Show context menu for dashboard cards"""
@@ -445,7 +460,7 @@ class DashboardPage(QWidget):
 
     def _export_excel_legacy(self):  # WHY: keep original sync export as reference; replaced by threaded version below.
         # Use ExportDialog to pick date range / team / person and options
-        from page_records import ExportDialog
+        from pages.records import ExportDialog
         dlg = ExportDialog(self.db, self)
         if dlg.exec() != QDialog.Accepted:
             return
@@ -824,7 +839,7 @@ class DashboardPage(QWidget):
 
     def export_excel(self):  # WHY: threaded export to keep UI responsive.
         # Use ExportDialog to pick date range / team / person and options
-        from page_records import ExportDialog  # WHY: reuse existing dialog without duplication.
+        from pages.records import ExportDialog  # WHY: reuse existing dialog without duplication.
         dlg = ExportDialog(self.db, self)  # WHY: keep same filter UI as before.
         if dlg.exec() != QDialog.Accepted:
             return
@@ -838,7 +853,7 @@ class DashboardPage(QWidget):
 
         tersane_id = self.tersane_id or 0  # WHY: normalize to global (0) if no tersane selected.
         tersane_label = self._get_active_tersane_label()  # WHY: include tersane in report title.
-        firma_id = self.firma_id  # WHY: keep firma context consistent with existing logic.
+        firma_id = self._get_active_firma_id()  # WHY: keep firma context consistent with current selection.
 
         out_name = f"Rapor_{vals['date_from']}_{vals['date_to']}.xlsx"
         cfg = load_config()

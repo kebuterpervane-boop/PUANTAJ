@@ -1218,7 +1218,7 @@ class Database:
             conn.execute("DELETE FROM avans_kesinti WHERE id=?", (id,)); conn.commit()
 
 
-    def get_dashboard_data(self, year, month, tersane_id=None):
+    def get_dashboard_data(self, year, month, tersane_id=None, firma_id=None):
         month_str = f"{year}-{month:02d}"
         with self.get_connection() as conn:
             c = conn.cursor()
@@ -1226,6 +1226,9 @@ class Database:
                     SUM(g.hesaplanan_normal), SUM(g.hesaplanan_mesai) FROM gunluk_kayit g LEFT JOIN personel p ON g.ad_soyad = p.ad_soyad
                     WHERE g.tarih LIKE ?"""
             params_p = [f"{month_str}%"]
+            if firma_id is not None:
+                sql_puantaj += " AND COALESCE(g.firma_id,1) = ?"
+                params_p.append(int(firma_id))
             if tersane_id and tersane_id > 0:
                 sql_puantaj += " AND g.tersane_id = ?"
                 params_p.append(tersane_id)
@@ -1235,9 +1238,15 @@ class Database:
             sql_avans = """SELECT a.ad_soyad, SUM(CASE WHEN a.tur IN ('Avans', 'Kesinti') THEN a.tutar ELSE 0 END) FROM avans_kesinti a
                                 WHERE a.tarih LIKE ?"""
             params_a = [f"{month_str}%"]
-            if tersane_id and tersane_id > 0:
-                sql_avans += " AND a.ad_soyad IN (SELECT ad_soyad FROM personel WHERE tersane_id = ?)"
-                params_a.append(tersane_id)
+            if firma_id is not None or (tersane_id and tersane_id > 0):
+                personel_scope_sql = "SELECT ad_soyad FROM personel WHERE 1=1"
+                if firma_id is not None:
+                    personel_scope_sql += " AND COALESCE(firma_id,1) = ?"
+                    params_a.append(int(firma_id))
+                if tersane_id and tersane_id > 0:
+                    personel_scope_sql += " AND COALESCE(tersane_id,0) = ?"
+                    params_a.append(int(tersane_id))
+                sql_avans += f" AND a.ad_soyad IN ({personel_scope_sql})"
             sql_avans += " GROUP BY a.ad_soyad"
             avans = c.execute(sql_avans, tuple(params_a)).fetchall()
 
